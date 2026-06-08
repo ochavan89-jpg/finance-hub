@@ -3,6 +3,12 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { supabase } from './lib/supabase.js'
 import LoginPage from './pages/LoginPage.jsx'
 import Dashboard from './pages/Dashboard.jsx'
+import Layout from './components/layout/Layout.jsx'
+import Treasury from './pages/Treasury.jsx'
+import Transactions from './pages/Transactions.jsx'
+import Approvals from './pages/Approvals.jsx'
+import Reports from './pages/Reports.jsx'
+import Settings from './pages/Settings.jsx'
 
 function AuthLoading() {
   return (
@@ -61,13 +67,19 @@ export default function App() {
           }
         />
         <Route
-          path="/dashboard"
           element={
             <ProtectedRoute>
-              <Dashboard />
+              <Layout />
             </ProtectedRoute>
           }
-        />
+        >
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/treasury" element={<Treasury />} />
+          <Route path="/transactions" element={<Transactions />} />
+          <Route path="/approvals" element={<Approvals />} />
+          <Route path="/reports" element={<Reports />} />
+          <Route path="/settings" element={<Settings />} />
+        </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

@@ -1,0 +1,55 @@
+:root {
+  /* DE Premium palette — matches MachineOS admin */
+  --bg:           #030810;
+  --bg-mid:       #0a1628;
+  --bg-deep:      #060e1c;
+  --surface:      #0c1a30;
+  --surface-2:    #122a4a;
+  --panel:        #0c1a30;
+  --border:       rgba(201, 168, 76, 0.18);
+  --border-light: rgba(201, 168, 76, 0.28);
+
+  --gold:         #C9A84C;
+  --gold-dim:     rgba(201, 168, 76, 0.12);
+  --gold-hover:   rgba(201, 168, 76, 0.22);
+  --gold-glow:    rgba(201, 168, 76, 0.15);
+
+  --text:         #F8FAFC;
+  --text-muted:   #94A3B8;
+  --text-dim:     #64748B;
+
+  --success:      #10B981;
+  --success-dim:  rgba(16, 185, 129, 0.14);
+  --error:        #F87171;
+  --error-dim:    rgba(248, 113, 113, 0.12);
+  --warning:      #F59E0B;
+  --warning-dim:  rgba(245, 158, 11, 0.14);
+  --info:         #60A5FA;
+  --info-dim:     rgba(96, 165, 250, 0.14);
+  --accent:       #e94560;
+
+  --font-heading: 'DM Sans', sans-serif;
+  --font-body:    'Inter', sans-serif;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  --sidebar-w: 248px;
+  --sidebar-w-collapsed: 64px;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.45);
+  --shadow-md: 0 8px 32px rgba(0, 0, 0, 0.55);
+  --shadow-gold: 0 0 24px rgba(201, 168, 76, 0.18);
+  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.35);
+}
