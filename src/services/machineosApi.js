@@ -46,4 +46,16 @@ export async function apiFetch(endpoint, options = {}) {
   return data
 }
 
+export function fetchTreasury() {
+  return apiFetch('/api/admin/treasury')
+}
+
+export function fetchPendingSettlements(status = 'pending_transfer') {
+  return apiFetch(`/api/admin/pending-settlements?status=${encodeURIComponent(status)}`)
+}
+
+export function retryPendingSettlement(id) {
+  return apiFetch(`/api/admin/pending-settlements/${id}/retry`, { method: 'POST' })
+}
+
 export { API_BASE_URL }

@@ -598,9 +598,293 @@
   border: 1px solid rgba(201, 168, 76, 0.22);
 }
 
+/* Treasury page */
+.treasury-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.treasury-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.treasury-success {
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.1);
+  color: #6ee7b7;
+  font-size: 0.9rem;
+}
+
+.treasury-retry-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(201, 168, 76, 0.35);
+  background: rgba(201, 168, 76, 0.12);
+  color: var(--gold);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.treasury-retry-btn:hover {
+  background: rgba(201, 168, 76, 0.2);
+}
+
+.treasury-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: var(--space-4);
+}
+
+.treasury-balance-card,
+.recon-status-card {
+  position: relative;
+  overflow: hidden;
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(201, 168, 76, 0.22);
+  background: linear-gradient(145deg, rgba(20, 45, 79, 0.85) 0%, rgba(12, 26, 48, 0.92) 45%, rgba(6, 14, 28, 0.96) 100%);
+  box-shadow: var(--shadow-card);
+}
+
+.treasury-balance-header,
+.recon-status-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.treasury-balance-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: flex-end;
+}
+
+.treasury-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.treasury-badge--dedicated {
+  color: var(--gold);
+  border: 1px solid rgba(201, 168, 76, 0.4);
+  background: rgba(201, 168, 76, 0.12);
+}
+
+.treasury-badge--warn {
+  color: var(--warning);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.treasury-balance-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-4);
+}
+
+.treasury-stat-value--muted {
+  font-size: clamp(1.35rem, 2.5vw, 1.75rem);
+  color: var(--text);
+}
+
+.treasury-meta {
+  margin: var(--space-4) 0 0;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.treasury-empty-inline,
+.treasury-skeleton-text {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.recon-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+
+.recon-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-3);
+}
+
+.recon-metrics strong {
+  display: block;
+  margin-top: 0.25rem;
+  font-family: var(--font-heading);
+  font-size: 1.25rem;
+  color: var(--text);
+}
+
+.status-pill {
+  display: inline-flex;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.status-pill--ok {
+  color: #6ee7b7;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.12);
+}
+
+.status-pill--mismatch {
+  color: #fcd34d;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.status-pill--error {
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.treasury-text-warn {
+  color: var(--warning);
+}
+
+.treasury-settlements {
+  margin-bottom: var(--space-2);
+}
+
+.settlement-table-wrap {
+  overflow-x: auto;
+}
+
+.settlement-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.settlement-table th {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  border-bottom: 1px solid rgba(201, 168, 76, 0.15);
+}
+
+.settlement-table td {
+  padding: 0.9rem 1rem;
+  vertical-align: top;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  color: var(--text);
+}
+
+.settlement-row:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.settlement-ref {
+  font-family: ui-monospace, monospace;
+  font-size: 0.82rem;
+  color: var(--gold);
+}
+
+.settlement-transfer-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  background: linear-gradient(145deg, rgba(16, 185, 129, 0.22) 0%, rgba(16, 185, 129, 0.08) 100%);
+  color: #6ee7b7;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.settlement-transfer-btn:hover:not(:disabled) {
+  border-color: rgba(16, 185, 129, 0.55);
+  background: rgba(16, 185, 129, 0.2);
+}
+
+.settlement-transfer-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.settlement-row-error {
+  margin: 0.45rem 0 0;
+  font-size: 0.72rem;
+  color: #fca5a5;
+  line-height: 1.4;
+  max-width: 220px;
+}
+
+.treasury-table-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.settlement-row--skeleton {
+  height: 3.25rem;
+  border-radius: var(--radius-md);
+  background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 75%);
+  background-size: 200% 100%;
+  animation: treasury-shimmer 1.2s ease infinite;
+}
+
+.treasury-spin {
+  animation: treasury-spin 0.8s linear infinite;
+}
+
+@keyframes treasury-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes treasury-spin {
+  to { transform: rotate(360deg); }
+}
+
 @media (max-width: 1100px) {
   .overview-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .treasury-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -628,6 +912,38 @@
 
   .overview-grid {
     grid-template-columns: 1fr;
+  }
+
+  .treasury-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .treasury-balance-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .settlement-table thead {
+    display: none;
+  }
+
+  .settlement-table td {
+    display: block;
+    padding: 0.35rem 0;
+    border: none;
+  }
+
+  .settlement-table td::before {
+    content: attr(data-label) ': ';
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .settlement-row {
+    display: block;
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   }
 
   .overview-hero {

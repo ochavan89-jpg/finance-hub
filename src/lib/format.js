@@ -14,6 +14,21 @@ export function formatCount(n) {
   }).format(Number(n))
 }
 
+export function formatDateTime(isoString) {
+  if (!isoString) return '—'
+  const date = new Date(isoString)
+  if (Number.isNaN(date.getTime())) return '—'
+  return new Intl.DateTimeFormat('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(date)
+}
+
 export function formatMonthLabel(monthKey) {
   if (!monthKey) return 'Month to date'
   const [year, month] = monthKey.split('-')
