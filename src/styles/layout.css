@@ -878,6 +878,144 @@
   to { transform: rotate(360deg); }
 }
 
+/* Approvals page */
+.approvals-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.approvals-threshold {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+
+.approvals-section {
+  margin-bottom: 0;
+}
+
+.approvals-section-msg {
+  margin-bottom: var(--space-4);
+}
+
+.approvals-table {
+  min-width: 640px;
+}
+
+.approval-row td {
+  vertical-align: top;
+}
+
+.approval-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.approval-reject-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.45rem 0.85rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.12);
+  color: #fca5a5;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.approval-reject-btn:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+.approval-reject-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.approval-link-btn {
+  display: inline-flex;
+  padding: 0.35rem 0.65rem;
+  margin-bottom: 0.5rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: rgba(96, 165, 250, 0.15);
+  color: #93c5fd;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.approval-link-btn:hover {
+  background: rgba(96, 165, 250, 0.25);
+}
+
+.approval-withdraw-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 200px;
+}
+
+.utr-input,
+.proof-input {
+  width: 100%;
+  max-width: 280px;
+  padding: 0.45rem 0.65rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(201, 168, 76, 0.22);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--text);
+  font-size: 0.78rem;
+}
+
+.utr-input:focus {
+  outline: none;
+  border-color: rgba(201, 168, 76, 0.45);
+}
+
+.proof-input {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.action-chip {
+  display: inline-flex;
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.action-chip--refund {
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.action-chip--payout {
+  color: #6ee7b7;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.action-chip--topup {
+  color: #93c5fd;
+  border: 1px solid rgba(96, 165, 250, 0.35);
+  background: rgba(96, 165, 250, 0.1);
+}
+
+.action-chip--withdraw {
+  color: #fcd34d;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.1);
+}
+
 @media (max-width: 1100px) {
   .overview-grid {
     grid-template-columns: repeat(2, 1fr);

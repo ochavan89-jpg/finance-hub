@@ -58,4 +58,83 @@ export function retryPendingSettlement(id) {
   return apiFetch(`/api/admin/pending-settlements/${id}/retry`, { method: 'POST' })
 }
 
+export function fetchDualApprovals(status = 'pending_second_approval') {
+  return apiFetch(`/api/admin/dual-approvals?status=${encodeURIComponent(status)}`)
+}
+
+export function approveDualApproval(id, note = '') {
+  return apiFetch(`/api/admin/dual-approvals/${id}/approve`, {
+    method: 'POST',
+    body: JSON.stringify({ note }),
+  })
+}
+
+export function rejectDualApproval(id, note = '') {
+  return apiFetch(`/api/admin/dual-approvals/${id}/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ note }),
+  })
+}
+
+export function fetchBankTopups(status = 'pending') {
+  return apiFetch(`/api/admin/bank-topups?status=${encodeURIComponent(status)}`)
+}
+
+export function approveBankTopup(id, note = '') {
+  return apiFetch(`/api/admin/bank-topups/${id}/approve`, {
+    method: 'POST',
+    body: JSON.stringify({ note }),
+  })
+}
+
+export function rejectBankTopup(id, note = '') {
+  return apiFetch(`/api/admin/bank-topups/${id}/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ note }),
+  })
+}
+
+export function fetchWithdrawRequests(status = 'pending') {
+  return apiFetch(`/api/admin/withdraw-requests?status=${encodeURIComponent(status)}`)
+}
+
+export function fetchWithdrawUtrProof(id) {
+  return apiFetch(`/api/admin/withdraw-requests/${id}/utr-proof`)
+}
+
+export async function approveWithdrawRequest(id, formData = {}) {
+  const token = getStoredToken()
+  if (!token) {
+    const err = new Error('auth_required')
+    err.status = 401
+    throw err
+  }
+
+  const body = new FormData()
+  body.append('utr', formData.utr || '')
+  if (formData.note) body.append('note', formData.note)
+  if (formData.proofFile) body.append('proof', formData.proofFile)
+
+  const res = await fetch(`${API_BASE_URL}/api/admin/withdraw-requests/${id}/approve`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body,
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const err = new Error(data.error || `Request failed (${res.status})`)
+    err.status = res.status
+    err.code = data.code
+    throw err
+  }
+  return { ...data, httpStatus: res.status }
+}
+
+export function rejectWithdrawRequest(id, note = '') {
+  return apiFetch(`/api/admin/withdraw-requests/${id}/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ note }),
+  })
+}
+
 export { API_BASE_URL }
