@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Lock, Mail, Shield } from 'lucide-react'
-import { supabase } from '../lib/supabase.js'
+import { login as machineosLogin } from '../services/machineosApi.js'
+import { useAuthStore } from '../store/authStore.js'
 
 export default function LoginPage() {
   const navigate = useNavigate()
+  const authLogin = useAuthStore((s) => s.login)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -15,19 +17,15 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
 
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    })
-
-    setLoading(false)
-
-    if (authError) {
-      setError(authError.message || 'Sign in failed. Please try again.')
-      return
+    try {
+      const response = await machineosLogin(email, password)
+      authLogin(response)
+      navigate('/dashboard')
+    } catch (err) {
+      setError(err.message || 'Sign in failed. Please try again.')
+    } finally {
+      setLoading(false)
     }
-
-    navigate('/dashboard')
   }
 
   return (

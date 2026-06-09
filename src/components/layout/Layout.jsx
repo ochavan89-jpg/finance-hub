@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { Menu } from 'lucide-react'
-import { supabase } from '../../lib/supabase.js'
-import { useAuthStore } from '../../store/authStore.js'
 import Sidebar from './Sidebar.jsx'
 
 const PAGE_TITLES = {
@@ -16,18 +14,7 @@ const PAGE_TITLES = {
 
 export default function Layout() {
   const location = useLocation()
-  const setSession = useAuthStore((s) => s.setSession)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-    })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-    })
-    return () => subscription.unsubscribe()
-  }, [setSession])
 
   useEffect(() => {
     setSidebarOpen(false)
