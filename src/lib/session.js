@@ -24,6 +24,12 @@ export function decodeJwtPayload(token) {
   }
 }
 
+export function isAccessTokenExpired(token) {
+  const payload = decodeJwtPayload(token)
+  if (!payload?.exp) return true
+  return payload.exp * 1000 < Date.now()
+}
+
 export function getTokenExpiryLabel(token) {
   const payload = decodeJwtPayload(token)
   if (!payload?.exp) return '—'

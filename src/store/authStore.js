@@ -41,6 +41,11 @@ export const useAuthStore = create((set) => ({
     })
   },
 
+  updateAccessToken: (token) => {
+    localStorage.setItem(TOKEN_KEY, token)
+    set({ token })
+  },
+
   signOut: async () => {
     localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(REFRESH_KEY)

@@ -18,6 +18,106 @@ export function getStoredToken() {
 
 
 
+export function getStoredRefreshToken() {
+
+  return localStorage.getItem(REFRESH_KEY)
+
+}
+
+
+
+let refreshPromise = null
+
+
+
+async function handleAuthFailure() {
+
+  const { useAuthStore } = await import('../store/authStore.js')
+
+  await useAuthStore.getState().signOut()
+
+  window.location.assign('/')
+
+}
+
+
+
+async function refreshAccessToken() {
+
+  if (refreshPromise) return refreshPromise
+
+
+
+  refreshPromise = (async () => {
+
+    const refreshToken = getStoredRefreshToken()
+
+    if (!refreshToken) {
+
+      await handleAuthFailure()
+
+      const err = new Error('auth_required')
+
+      err.status = 401
+
+      throw err
+
+    }
+
+
+
+    const res = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+
+      method: 'POST',
+
+      headers: { 'Content-Type': 'application/json' },
+
+      body: JSON.stringify({ refreshToken }),
+
+    })
+
+    const data = await res.json().catch(() => ({}))
+
+
+
+    if (!res.ok || !data.token) {
+
+      await handleAuthFailure()
+
+      const err = new Error(data.error || 'Refresh token expired or invalid')
+
+      err.status = res.status || 401
+
+      throw err
+
+    }
+
+
+
+    const { useAuthStore } = await import('../store/authStore.js')
+
+    useAuthStore.getState().updateAccessToken(data.token)
+
+    return data.token
+
+  })()
+
+
+
+  try {
+
+    return await refreshPromise
+
+  } finally {
+
+    refreshPromise = null
+
+  }
+
+}
+
+
+
 export async function login(email, password) {
 
   const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
@@ -56,7 +156,15 @@ export async function apiFetch(endpoint, options = {}) {
 
   const token = getStoredToken()
 
-  if (!token) throw new Error('auth_required')
+  if (!token) {
+
+    const err = new Error('auth_required')
+
+    err.status = 401
+
+    throw err
+
+  }
 
 
 
@@ -77,6 +185,42 @@ export async function apiFetch(endpoint, options = {}) {
   })
 
   const data = await res.json().catch(() => ({}))
+
+
+
+  if (res.status === 403) {
+
+    const err = new Error(data.error || `Request failed (${res.status})`)
+
+    err.status = 403
+
+    throw err
+
+  }
+
+
+
+  if (res.status === 401) {
+
+    if (!options._authRetried) {
+
+      await refreshAccessToken()
+
+      return apiFetch(endpoint, { ...options, _authRetried: true })
+
+    }
+
+    await handleAuthFailure()
+
+    const err = new Error(data.error || 'Session expired')
+
+    err.status = 401
+
+    throw err
+
+  }
+
+
 
   if (!res.ok) {
 
@@ -174,7 +318,7 @@ export function fetchSettlementsPage({
 
 
 
-export async function downloadReconciliationCsv({ from = '', to = '', limit = 2000 } = {}) {
+export async function downloadReconciliationCsv({ from = '', to = '', limit = 2000 } = {}, authRetried = false) {
 
   const token = getStoredToken()
 
@@ -207,6 +351,32 @@ export async function downloadReconciliationCsv({ from = '', to = '', limit = 20
     { headers: { Authorization: `Bearer ${token}` } },
 
   )
+
+
+
+  if (res.status === 401 && !authRetried) {
+
+    await refreshAccessToken()
+
+    return downloadReconciliationCsv({ from, to, limit }, true)
+
+  }
+
+
+
+  if (res.status === 401) {
+
+    await handleAuthFailure()
+
+    const data = await res.json().catch(() => ({}))
+
+    const err = new Error(data.error || 'Session expired')
+
+    err.status = 401
+
+    throw err
+
+  }
 
 
 
@@ -368,7 +538,7 @@ export function fetchWithdrawUtrProof(id) {
 
 
 
-export async function approveWithdrawRequest(id, formData = {}) {
+export async function approveWithdrawRequest(id, formData = {}, authRetried = false) {
 
   const token = getStoredToken()
 
@@ -405,6 +575,32 @@ export async function approveWithdrawRequest(id, formData = {}) {
   })
 
   const data = await res.json().catch(() => ({}))
+
+
+
+  if (res.status === 401 && !authRetried) {
+
+    await refreshAccessToken()
+
+    return approveWithdrawRequest(id, formData, true)
+
+  }
+
+
+
+  if (res.status === 401) {
+
+    await handleAuthFailure()
+
+    const err = new Error(data.error || 'Session expired')
+
+    err.status = 401
+
+    throw err
+
+  }
+
+
 
   if (!res.ok) {
 
