@@ -8,6 +8,7 @@ const PAGE_TITLES = {
   '/treasury': 'Treasury',
   '/transactions': 'Transactions',
   '/approvals': 'Approvals',
+  '/wallet-credits': 'Wallet Credits',
   '/reports': 'Reports',
   '/settings': 'Settings',
 }

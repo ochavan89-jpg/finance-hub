@@ -634,5 +634,33 @@ export function rejectWithdrawRequest(id, note = '') {
 
 
 
+export function fetchUsers({ limit = 50, offset = 0 } = {}) {
+
+  const params = new URLSearchParams()
+
+  params.set('limit', String(limit))
+
+  params.set('offset', String(offset))
+
+  return apiFetch(`/api/admin/users?${params.toString()}`)
+
+}
+
+
+
+export function initiateWalletCredit({ userId, amount, reason }) {
+
+  return apiFetch('/api/admin/wallet-credits', {
+
+    method: 'POST',
+
+    body: JSON.stringify({ userId, amount, reason }),
+
+  })
+
+}
+
+
+
 export { API_BASE_URL }
 

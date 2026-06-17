@@ -9,6 +9,7 @@ import Transactions from './pages/Transactions.jsx'
 import Approvals from './pages/Approvals.jsx'
 import Reports from './pages/Reports.jsx'
 import Settings from './pages/Settings.jsx'
+import WalletCredits from './pages/WalletCredits.jsx'
 
 function AuthLoading() {
   return (
@@ -65,6 +66,7 @@ export default function App() {
           <Route path="/treasury" element={<Treasury />} />
           <Route path="/transactions" element={<Transactions />} />
           <Route path="/approvals" element={<Approvals />} />
+          <Route path="/wallet-credits" element={<WalletCredits />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
         </Route>

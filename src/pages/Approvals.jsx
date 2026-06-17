@@ -19,6 +19,7 @@ const ACTION_LABELS = {
   owner_payout: 'Owner Payout',
   bank_topup: 'Bank Top-up',
   owner_withdraw: 'Owner Withdraw',
+  admin_wallet_topup: 'Admin Wallet Credit',
 }
 
 const ACTION_CHIP_CLASS = {
