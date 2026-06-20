@@ -25,7 +25,7 @@ const NAV_ITEMS = [
   { to: '/settings', label: 'Settings', icon: Settings },
 ]
 
-export default function Sidebar({ isOpen, onClose }) {
+export default function Sidebar({ isOpen, isCollapsed, onClose }) {
   const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
   const signOut = useAuthStore((s) => s.signOut)
@@ -39,7 +39,7 @@ export default function Sidebar({ isOpen, onClose }) {
   }
 
   return (
-    <aside className={`sidebar${isOpen ? ' is-open' : ''}`}>
+    <aside className={`sidebar${isOpen ? ' is-open' : ''}${isCollapsed ? ' is-collapsed' : ''}`}>
       <div className="sidebar-brand">
         <div className="sidebar-logo">
           <Shield size={20} strokeWidth={2.25} />
@@ -66,12 +66,13 @@ export default function Sidebar({ isOpen, onClose }) {
             to={to}
             className={({ isActive }) => `sidebar-link${isActive ? ' is-active' : ''}`}
             onClick={onClose}
+            title={label}
           >
             <span className="sidebar-link-icon">
               <Icon size={16} strokeWidth={1.85} />
             </span>
-            <span style={{ flex: 1 }}>{label}</span>
-            <ChevronRight size={14} style={{ opacity: 0.45 }} />
+            <span className="sidebar-link-label">{label}</span>
+            <ChevronRight className="sidebar-link-chevron" size={14} />
           </NavLink>
         ))}
       </nav>
@@ -88,7 +89,9 @@ export default function Sidebar({ isOpen, onClose }) {
           disabled={loggingOut}
         >
           <LogOut size={16} />
-          {loggingOut ? 'Signing out…' : 'Logout'}
+          <span className="sidebar-logout-text">
+            {loggingOut ? 'Signing out…' : 'Logout'}
+          </span>
         </button>
       </div>
     </aside>
