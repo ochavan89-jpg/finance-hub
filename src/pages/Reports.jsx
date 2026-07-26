@@ -489,6 +489,9 @@ export default function Reports() {
               </>
             )}
           </button>
+          <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+            ECO bookings only (Sec 52)
+          </p>
         </div>
 
         <div className="ledger-table-wrap">
