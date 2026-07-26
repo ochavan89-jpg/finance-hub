@@ -536,6 +536,116 @@ export async function downloadGstr1Json(from = '', to = '', authRetried = false)
 
 
 
+export async function downloadGstr8Json(from = '', to = '', authRetried = false) {
+
+  const token = getStoredToken()
+
+  if (!token) {
+
+    const err = new Error('auth_required')
+
+    err.status = 401
+
+    throw err
+
+  }
+
+
+
+  const params = new URLSearchParams()
+
+  params.set('download', 'true')
+
+  if (from) params.set('from', from)
+
+  if (to) params.set('to', to)
+
+
+
+  const res = await fetch(
+
+    `${API_BASE_URL}/api/admin/reports/gstr8-json?${params.toString()}`,
+
+    { headers: { Authorization: `Bearer ${token}` } },
+
+  )
+
+
+
+  if (res.status === 401 && !authRetried) {
+
+    await refreshAccessToken()
+
+    return downloadGstr8Json(from, to, true)
+
+  }
+
+
+
+  if (res.status === 401) {
+
+    await handleAuthFailure()
+
+    const data = await res.json().catch(() => ({}))
+
+    const err = new Error(data.error || 'Session expired')
+
+    err.status = 401
+
+    throw err
+
+  }
+
+
+
+  const contentType = (res.headers.get('Content-Type') || '').toLowerCase()
+
+  const disposition = res.headers.get('Content-Disposition') || ''
+
+
+
+  if (!res.ok) {
+
+    const data = await res.json().catch(() => ({}))
+
+    const err = new Error(data.error || `GSTR-8 export failed (${res.status})`)
+
+    err.status = res.status
+
+    throw err
+
+  }
+
+
+
+  if (!contentType.includes('application/json') && !disposition.includes('attachment')) {
+
+    const err = new Error('Unexpected response type — expected GSTR-8 JSON export')
+
+    err.status = res.status
+
+    throw err
+
+  }
+
+
+
+  const blob = await res.blob()
+
+  const filename =
+
+    parseContentDispositionFilename(disposition) ||
+
+    `GSTR8_DE_${new Date().toISOString().slice(0, 7).replace('-', '')}.json`
+
+  triggerBlobDownload(blob, filename)
+
+  return { filename, blob }
+
+}
+
+
+
 export function fetchTreasury() {
 
   return apiFetch('/api/admin/treasury')
