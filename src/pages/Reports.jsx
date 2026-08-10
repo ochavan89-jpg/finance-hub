@@ -91,6 +91,14 @@ function SettlementStatusPill({ status }) {
   return <span className={`type-pill type-pill--${tone}`}>{label}</span>
 }
 
+function RouteTransferStatusPill({ status }) {
+  if (!status) return <span className="type-pill type-pill--neutral">—</span>
+  const s = String(status).toLowerCase()
+  const tone =
+    s === 'processed' ? 'credit' : s === 'pending' ? 'warning' : s === 'failed' || s === 'reversed' ? 'debit' : 'neutral'
+  return <span className={`type-pill type-pill--${tone}`}>{s}</span>
+}
+
 function ChartTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null
   const value = payload[0]?.value
@@ -422,6 +430,7 @@ export default function Reports() {
                   <th>TDS</th>
                   <th>GST TCS</th>
                   <th>Net Payout</th>
+                  <th>Route Transfer</th>
                   <th>Status</th>
                 </tr>
               </thead>
@@ -441,6 +450,11 @@ export default function Reports() {
                     <td data-label="GST TCS">{formatInr(row.gst_tcs_amount)}</td>
                     <td data-label="Net Payout">
                       <span className="reports-net-payout">{formatInr(row.net_owner_amount)}</span>
+                    </td>
+                    <td data-label="Route Transfer">
+                      <RouteTransferStatusPill
+                        status={row.route_transfer_status || row.booking?.route_transfer_status}
+                      />
                     </td>
                     <td data-label="Status">
                       <SettlementStatusPill status={row.status} />

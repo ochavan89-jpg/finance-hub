@@ -662,5 +662,27 @@ export function initiateWalletCredit({ userId, amount, reason }) {
 
 
 
+export function fetchRouteSettlementOwners() {
+
+  return apiFetch('/api/admin/route/owners')
+
+}
+
+
+
+export function setRouteSettlementEnabled(ownerId, enabled) {
+
+  return apiFetch(`/api/admin/route/${encodeURIComponent(ownerId)}/enable-settlement`, {
+
+    method: 'POST',
+
+    body: JSON.stringify({ enabled: Boolean(enabled) }),
+
+  })
+
+}
+
+
+
 export { API_BASE_URL }
 

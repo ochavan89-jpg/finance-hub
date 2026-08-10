@@ -2,8 +2,11 @@ import { useCallback, useEffect, useState } from 'react'
 import { Landmark, Loader2, RefreshCw, ShieldCheck, Wallet } from 'lucide-react'
 import {
   fetchPendingSettlements,
+  fetchRouteSettlementOwners,
   fetchTreasury,
+  fetchUsers,
   retryPendingSettlement,
+  setRouteSettlementEnabled,
 } from '../services/machineosApi.js'
 import { formatCount, formatDateTime, formatInr } from '../lib/format.js'
 
@@ -18,13 +21,32 @@ function ReconStatusPill({ status }) {
   return <span className={`status-pill status-pill--${tone}`}>{label}</span>
 }
 
+function RouteTransferStatusPill({ status }) {
+  if (!status) return <span className="status-pill status-pill--muted">—</span>
+  const s = String(status).toLowerCase()
+  const tone =
+    s === 'processed' ? 'ok' : s === 'pending' ? 'mismatch' : s === 'failed' || s === 'reversed' ? 'error' : 'muted'
+  return <span className={`status-pill status-pill--${tone}`}>{s}</span>
+}
+
+function RouteSettlementStatusPill({ enabled, linkedStatus }) {
+  if (enabled) return <span className="status-pill status-pill--ok">Enabled</span>
+  if (linkedStatus) {
+    return <span className="status-pill status-pill--mismatch">{String(linkedStatus)}</span>
+  }
+  return <span className="status-pill status-pill--muted">Disabled</span>
+}
+
 export default function Treasury() {
   const [treasury, setTreasury] = useState(null)
   const [settlements, setSettlements] = useState([])
+  const [routeOwners, setRouteOwners] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [busyId, setBusyId] = useState(null)
+  const [routeBusyId, setRouteBusyId] = useState(null)
   const [rowErrors, setRowErrors] = useState({})
+  const [routeRowErrors, setRouteRowErrors] = useState({})
   const [successMessage, setSuccessMessage] = useState('')
 
   const load = useCallback(async () => {
@@ -32,17 +54,27 @@ export default function Treasury() {
     setError('')
     setSuccessMessage('')
     setRowErrors({})
+    setRouteRowErrors({})
 
     try {
-      const [treasuryData, settlementData] = await Promise.all([
+      const [treasuryData, settlementData, routeData] = await Promise.all([
         fetchTreasury(),
         fetchPendingSettlements('pending_transfer'),
+        fetchRouteSettlementOwners().catch(async (routeErr) => {
+          if (routeErr?.status && routeErr.status !== 404) throw routeErr
+          const usersData = await fetchUsers({ limit: 500, offset: 0 })
+          return {
+            items: (usersData.items || []).filter((u) => u.role === 'owner'),
+          }
+        }),
       ])
       setTreasury(treasuryData)
       setSettlements(settlementData.items || [])
+      setRouteOwners(routeData.items || routeData.owners || [])
     } catch (err) {
       setTreasury(null)
       setSettlements([])
+      setRouteOwners([])
       setError(getLoadErrorMessage(err))
     } finally {
       setLoading(false)
@@ -84,6 +116,43 @@ export default function Treasury() {
       }))
     } finally {
       setBusyId(null)
+    }
+  }
+
+  async function handleRouteSettlementToggle(owner) {
+    const ownerId = owner.id || owner.owner_id
+    const ownerName = owner.name || owner.email || ownerId
+    const nextEnabled = !Boolean(owner.route_settlement_enabled)
+    const confirmed = window.confirm(
+      nextEnabled
+        ? `Enable Route auto-settlement for ${ownerName}?`
+        : `Disable Route auto-settlement for ${ownerName}?`,
+    )
+    if (!confirmed) return
+
+    setRouteBusyId(ownerId)
+    setSuccessMessage('')
+    setRouteRowErrors((prev) => {
+      const next = { ...prev }
+      delete next[ownerId]
+      return next
+    })
+
+    try {
+      await setRouteSettlementEnabled(ownerId, nextEnabled)
+      setSuccessMessage(
+        nextEnabled
+          ? `Route settlement enabled for ${ownerName}.`
+          : `Route settlement disabled for ${ownerName}.`,
+      )
+      await load()
+    } catch (err) {
+      setRouteRowErrors((prev) => ({
+        ...prev,
+        [ownerId]: err.message || 'Failed to update route settlement.',
+      }))
+    } finally {
+      setRouteBusyId(null)
     }
   }
 
@@ -231,6 +300,7 @@ export default function Treasury() {
                   <th>Booking Ref</th>
                   <th>Owner</th>
                   <th>Net Amount</th>
+                  <th>Route Transfer</th>
                   <th>Date</th>
                   <th>Action</th>
                 </tr>
@@ -243,6 +313,11 @@ export default function Treasury() {
                     </td>
                     <td data-label="Owner">{row.owner?.name || row.owner_id}</td>
                     <td data-label="Net Amount">{formatInr(row.net_owner_amount)}</td>
+                    <td data-label="Route Transfer">
+                      <RouteTransferStatusPill
+                        status={row.route_transfer_status || row.booking?.route_transfer_status}
+                      />
+                    </td>
                     <td data-label="Date">{formatDateTime(row.created_at)}</td>
                     <td data-label="Action">
                       <button
@@ -268,6 +343,96 @@ export default function Treasury() {
                     </td>
                   </tr>
                 ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="section-card treasury-settlements">
+        <div className="section-header">
+          <h2 className="section-title">Route Settlements</h2>
+          <span className="kpi-card-chip">
+            {loading ? '…' : `${formatCount(routeOwners.length)} owners`}
+          </span>
+        </div>
+        <p className="treasury-meta" style={{ marginTop: 0, marginBottom: '1rem' }}>
+          Enable Razorpay Route auto-settlement per owner after their linked account is active.
+        </p>
+
+        {loading ? (
+          <div className="treasury-table-skeleton">
+            {[1, 2, 3].map((n) => (
+              <div key={n} className="settlement-row settlement-row--skeleton" />
+            ))}
+          </div>
+        ) : routeOwners.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state-icon">⇄</div>
+            <p>No owners found for Route settlement control.</p>
+          </div>
+        ) : (
+          <div className="settlement-table-wrap">
+            <table className="settlement-table">
+              <thead>
+                <tr>
+                  <th>Owner</th>
+                  <th>Linked Account</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {routeOwners.map((owner) => {
+                  const ownerId = owner.id || owner.owner_id
+                  const enabled = Boolean(owner.route_settlement_enabled)
+                  const linkedStatus =
+                    owner.razorpay_linked_account_status || owner.linked_account_status || ''
+                  const linkedId =
+                    owner.razorpay_linked_account_id || owner.linked_account_id || ''
+                  return (
+                    <tr key={ownerId} className="settlement-row">
+                      <td data-label="Owner">
+                        <div>{owner.name || '—'}</div>
+                        <div className="treasury-meta">{owner.email || owner.phone || ownerId}</div>
+                      </td>
+                      <td data-label="Linked Account">
+                        {linkedId ? (
+                          <span className="settlement-ref">{linkedId}</span>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td data-label="Status">
+                        <RouteSettlementStatusPill enabled={enabled} linkedStatus={linkedStatus} />
+                      </td>
+                      <td data-label="Action">
+                        <button
+                          type="button"
+                          className={`settlement-transfer-btn${enabled ? ' settlement-transfer-btn--warn' : ''}`}
+                          disabled={routeBusyId === ownerId}
+                          onClick={() => handleRouteSettlementToggle(owner)}
+                        >
+                          {routeBusyId === ownerId ? (
+                            <>
+                              <Loader2 size={14} className="treasury-spin" />
+                              Updating…
+                            </>
+                          ) : enabled ? (
+                            'Disable'
+                          ) : (
+                            'Enable'
+                          )}
+                        </button>
+                        {routeRowErrors[ownerId] && (
+                          <p className="settlement-row-error" role="alert">
+                            {routeRowErrors[ownerId]}
+                          </p>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
