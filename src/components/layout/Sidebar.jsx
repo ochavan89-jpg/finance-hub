@@ -6,6 +6,7 @@ import {
   ChevronRight,
   CreditCard,
   FileText,
+  ScrollText,
   Landmark,
   LayoutDashboard,
   LogOut,
@@ -21,6 +22,7 @@ const NAV_ITEMS = [
   { to: '/transactions', label: 'Transactions', icon: ArrowLeftRight },
   { to: '/approvals', label: 'Approvals', icon: CheckSquare },
   { to: '/wallet-credits', label: 'Wallet Credits', icon: CreditCard },
+  { to: '/mandates', label: 'Mandates', icon: ScrollText },
   { to: '/reports', label: 'Reports', icon: FileText },
   { to: '/settings', label: 'Settings', icon: Settings },
 ]

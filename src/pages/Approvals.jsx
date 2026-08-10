@@ -3,9 +3,11 @@ import { Loader2, RefreshCw } from 'lucide-react'
 import {
   approveBankTopup,
   approveDualApproval,
+  approveOwnerDefault,
   approveWithdrawRequest,
   fetchBankTopups,
   fetchDualApprovals,
+  fetchOwnerDefaults,
   fetchWithdrawRequests,
   fetchWithdrawUtrProof,
   rejectBankTopup,
@@ -44,16 +46,35 @@ function rowKey(section, id) {
   return `${section}-${id}`
 }
 
+function defaultTypeLabel(type) {
+  const map = {
+    no_show: 'No-show',
+    abandonment: 'Abandonment',
+    breakdown: 'Breakdown',
+  }
+  return map[type] || type || '—'
+}
+
+function ownerDefaultBookingRef(row) {
+  return row.booking_ref || row.bookings?.booking_ref || row.booking_id || '—'
+}
+
 export default function Approvals() {
   const [dualItems, setDualItems] = useState([])
   const [bankItems, setBankItems] = useState([])
   const [withdrawItems, setWithdrawItems] = useState([])
+  const [ownerDefaultItems, setOwnerDefaultItems] = useState([])
   const [threshold, setThreshold] = useState(10000)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [busyId, setBusyId] = useState(null)
   const [rowErrors, setRowErrors] = useState({})
-  const [sectionSuccess, setSectionSuccess] = useState({ dual: '', bank: '', withdraw: '' })
+  const [sectionSuccess, setSectionSuccess] = useState({
+    dual: '',
+    bank: '',
+    withdraw: '',
+    ownerDefaults: '',
+  })
   const [withdrawForms, setWithdrawForms] = useState({})
 
   const clearRowError = (key) => {
@@ -67,23 +88,26 @@ export default function Approvals() {
   const load = useCallback(async () => {
     setLoading(true)
     setLoadError('')
-    setSectionSuccess({ dual: '', bank: '', withdraw: '' })
+    setSectionSuccess({ dual: '', bank: '', withdraw: '', ownerDefaults: '' })
     setRowErrors({})
 
     try {
-      const [dualRes, bankRes, withdrawRes] = await Promise.all([
+      const [dualRes, bankRes, withdrawRes, ownerDefaultRes] = await Promise.all([
         fetchDualApprovals('pending_second_approval'),
         fetchBankTopups('pending'),
         fetchWithdrawRequests('pending'),
+        fetchOwnerDefaults('pending'),
       ])
       setDualItems(dualRes.items || [])
       setThreshold(dualRes.thresholdInr || 10000)
       setBankItems(bankRes.items || [])
       setWithdrawItems(withdrawRes.items || [])
+      setOwnerDefaultItems(ownerDefaultRes.items || [])
     } catch (err) {
       setDualItems([])
       setBankItems([])
       setWithdrawItems([])
+      setOwnerDefaultItems([])
       setLoadError(getErrorMessage(err))
     } finally {
       setLoading(false)
@@ -260,6 +284,29 @@ export default function Approvals() {
     try {
       await rejectWithdrawRequest(row.id, note)
       setSectionSuccess((s) => ({ ...s, withdraw: 'Withdraw request rejected.' }))
+      await load()
+    } catch (err) {
+      setRowErrors((prev) => ({ ...prev, [key]: getErrorMessage(err) }))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  async function handleOwnerDefaultApprove(row) {
+    const ref = ownerDefaultBookingRef(row)
+    const confirmed = window.confirm(
+      `Approve owner default for ${ref} (${defaultTypeLabel(row.default_type)})?`,
+    )
+    if (!confirmed) return
+
+    const key = rowKey('ownerDefault', row.id)
+    setBusyId(row.id)
+    clearRowError(key)
+    setSectionSuccess((s) => ({ ...s, ownerDefaults: '' }))
+
+    try {
+      await approveOwnerDefault(row.id)
+      setSectionSuccess((s) => ({ ...s, ownerDefaults: `Approved owner default for ${ref}.` }))
       await load()
     } catch (err) {
       setRowErrors((prev) => ({ ...prev, [key]: getErrorMessage(err) }))
@@ -571,6 +618,77 @@ export default function Approvals() {
                             </div>
                           </div>
                         )}
+                        {rowErrors[key] && (
+                          <p className="settlement-row-error" role="alert">{rowErrors[key]}</p>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* Section D — Owner Defaults */}
+      <section className="section-card approvals-section">
+        <div className="section-header">
+          <h2 className="section-title">Owner Defaults</h2>
+          <span className="kpi-card-chip">
+            {loading ? '…' : `${ownerDefaultItems.length} pending`}
+          </span>
+        </div>
+
+        {sectionSuccess.ownerDefaults && (
+          <div className="treasury-success approvals-section-msg" role="status">
+            {sectionSuccess.ownerDefaults}
+          </div>
+        )}
+
+        {loading ? (
+          <div className="treasury-table-skeleton">
+            <div className="settlement-row settlement-row--skeleton" />
+          </div>
+        ) : ownerDefaultItems.length === 0 ? (
+          <div className="empty-state">
+            <p>No pending owner defaults</p>
+          </div>
+        ) : (
+          <div className="settlement-table-wrap">
+            <table className="settlement-table approvals-table">
+              <thead>
+                <tr>
+                  <th>Booking Ref</th>
+                  <th>Default Type</th>
+                  <th>Penalty Gross</th>
+                  <th>Reported At</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ownerDefaultItems.map((row) => {
+                  const key = rowKey('ownerDefault', row.id)
+                  return (
+                    <tr key={row.id} className="approval-row">
+                      <td data-label="Booking Ref">
+                        <span className="settlement-ref">{ownerDefaultBookingRef(row)}</span>
+                      </td>
+                      <td data-label="Default Type">{defaultTypeLabel(row.default_type)}</td>
+                      <td data-label="Penalty Gross">{formatInr(row.penalty_gross)}</td>
+                      <td data-label="Reported At">{formatDateTime(row.reported_at)}</td>
+                      <td data-label="Actions">
+                        <button
+                          type="button"
+                          className="settlement-transfer-btn"
+                          disabled={busyId === row.id}
+                          onClick={() => handleOwnerDefaultApprove(row)}
+                        >
+                          {busyId === row.id ? (
+                            <Loader2 size={14} className="treasury-spin" />
+                          ) : null}
+                          Approve
+                        </button>
                         {rowErrors[key] && (
                           <p className="settlement-row-error" role="alert">{rowErrors[key]}</p>
                         )}

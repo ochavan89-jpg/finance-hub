@@ -684,5 +684,35 @@ export function setRouteSettlementEnabled(ownerId, enabled) {
 
 
 
+export function fetchOwnerDefaults(status = 'pending') {
+
+  return apiFetch(`/api/admin/owner-defaults?status=${encodeURIComponent(status)}`)
+
+}
+
+
+
+export function approveOwnerDefault(id) {
+
+  return apiFetch(`/api/admin/owner-defaults/${encodeURIComponent(id)}/approve`, {
+
+    method: 'POST',
+
+    body: JSON.stringify({}),
+
+  })
+
+}
+
+
+
+export function fetchMandates() {
+
+  return apiFetch('/api/admin/mandates')
+
+}
+
+
+
 export { API_BASE_URL }
 

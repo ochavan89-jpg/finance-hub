@@ -19,6 +19,7 @@ const PAGE_TITLES = {
   '/transactions': 'Transactions',
   '/approvals': 'Approvals',
   '/wallet-credits': 'Wallet Credits',
+  '/mandates': 'e-NACH Mandates',
   '/reports': 'Reports',
   '/settings': 'Settings',
 }

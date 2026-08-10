@@ -91,6 +91,22 @@ function SettlementStatusPill({ status }) {
   return <span className={`type-pill type-pill--${tone}`}>{label}</span>
 }
 
+function formatDiscountApplied(value) {
+  if (value == null || value === '') return '—'
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No'
+  const n = Number(value)
+  if (Number.isFinite(n)) {
+    if (n === 0) return 'No'
+    if (n > 0 && n <= 100) return `${n}%`
+    return formatInr(n)
+  }
+  return String(value)
+}
+
+function raBillField(row, key) {
+  return row[key] ?? row.ra_bill?.[key] ?? row.contract_ra_bill?.[key] ?? row.booking?.[key]
+}
+
 function RouteTransferStatusPill({ status }) {
   if (!status) return <span className="type-pill type-pill--neutral">—</span>
   const s = String(status).toLowerCase()
@@ -431,6 +447,9 @@ export default function Reports() {
                   <th>GST TCS</th>
                   <th>Net Payout</th>
                   <th>Route Transfer</th>
+                  <th>Pay By</th>
+                  <th>Early Deadline</th>
+                  <th>Early Discount</th>
                   <th>Status</th>
                 </tr>
               </thead>
@@ -455,6 +474,15 @@ export default function Reports() {
                       <RouteTransferStatusPill
                         status={row.route_transfer_status || row.booking?.route_transfer_status}
                       />
+                    </td>
+                    <td data-label="Pay By">
+                      {formatDateTime(raBillField(row, 'payment_due_date'))}
+                    </td>
+                    <td data-label="Early Deadline">
+                      {formatDateTime(raBillField(row, 'early_payment_deadline'))}
+                    </td>
+                    <td data-label="Early Discount">
+                      {formatDiscountApplied(raBillField(row, 'early_payment_discount_applied'))}
                     </td>
                     <td data-label="Status">
                       <SettlementStatusPill status={row.status} />
