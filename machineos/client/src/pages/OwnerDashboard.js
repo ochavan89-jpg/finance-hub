@@ -1896,36 +1896,27 @@ const OwnerDashboard = () => {
     return result.profile;
   };
 
-  const handleCreateRouteLinkedAccount = async () => {
+  const handleSetupAutoSettlement = async () => {
     setRouteSetupBusy(true);
     setRouteSetupError('');
     setRouteSetupSuccess('');
     try {
       const data = await secureFetch('/api/owner/route/create-account', { method: 'POST' });
-      await refreshOwnerBankProfile();
+      let profile = await refreshOwnerBankProfile();
+      const accountId = data?.account_id || profile?.razorpay_linked_account_id;
+      if (accountId && String(profile?.razorpay_linked_account_status || data?.status || '').toLowerCase() !== 'active') {
+        try {
+          await secureFetch('/api/owner/route/activate', { method: 'POST' });
+          profile = await refreshOwnerBankProfile();
+        } catch (activateErr) {
+          // Linked account may already be pending admin review — keep create success.
+          console.warn(activateErr);
+        }
+      }
       setRouteSetupSuccess(
         data?.already
-          ? `Linked account already exists (${data.account_id || data.status || 'pending'}).`
-          : `Linked account created${data?.account_id ? `: ${data.account_id}` : ''}.`,
-      );
-    } catch (err) {
-      setRouteSetupError(err?.message || t('actionFailed'));
-    } finally {
-      setRouteSetupBusy(false);
-    }
-  };
-
-  const handleActivateRouteLinkedAccount = async () => {
-    setRouteSetupBusy(true);
-    setRouteSetupError('');
-    setRouteSetupSuccess('');
-    try {
-      const data = await secureFetch('/api/owner/route/activate', { method: 'POST' });
-      await refreshOwnerBankProfile();
-      setRouteSetupSuccess(
-        data?.status === 'active' || data?.ok
-          ? 'Linked account activated. Finance admin can enable Route auto-settlement.'
-          : (data?.message || 'Activation requested.'),
+          ? `Linked account ready${accountId ? `: ${accountId}` : ''}.`
+          : `Auto-settlement linked account created${accountId ? `: ${accountId}` : ''}.`,
       );
     } catch (err) {
       setRouteSetupError(err?.message || t('actionFailed'));
@@ -9028,7 +9019,7 @@ const OwnerDashboard = () => {
                   <table style={{ ...s.table, minWidth: '800px' }}>
                     <thead>
                       <tr>
-                        {[t('ownerBookingRef'), t('date'), t('gross'), t('commission'), 'TDS 2%', 'GST TCS 1%', t('netPaid'), 'Route', t('status'), t('ownerReceiptPdf')].map((h) => (
+                        {[t('ownerBookingRef'), t('date'), t('gross'), t('commission'), 'TDS 2%', 'GST TCS 1%', t('netPaid'), t('status'), t('ownerReceiptPdf')].map((h) => (
                           <th key={h} style={s.th}>{h}</th>
                         ))}
                       </tr>
@@ -9053,9 +9044,6 @@ const OwnerDashboard = () => {
                             <td style={{ ...s.td, color: '#e94560' }}>- {fmtInr(tds)}</td>
                             <td style={{ ...s.td, color: '#e94560' }}>- {fmtInr(tcs)}</td>
                             <td style={{ ...s.td, color: '#4CAF50', fontWeight: '700' }}>{fmtInr(net)}</td>
-                            <td style={{ ...s.td, color: '#8896a8', fontWeight: 600, fontSize: '11px' }}>
-                              {row.route_transfer_status || row.booking?.route_transfer_status || '—'}
-                            </td>
                             <td style={{ ...s.td, color: settlementStatusColor(row.status), fontWeight: 600, fontSize: '11px' }}>
                               {settlementStatusLabel(row.status)}
                             </td>
@@ -9087,12 +9075,6 @@ const OwnerDashboard = () => {
                   { label: t('accountNumber'), val: maskAccountNumber(ownerBankProfile?.account_number) },
                   { label: t('ifsc'), val: ownerBankProfile?.ifsc || '—' },
                   { label: t('ownerPanNumber'), val: maskPan(ownerBankProfile?.pan_number) },
-                  {
-                    label: 'Route settlement',
-                    val: ownerBankProfile?.route_settlement_enabled
-                      ? 'Enabled'
-                      : (ownerBankProfile?.razorpay_linked_account_status || 'Not set up'),
-                  },
                 ].map((d, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                     <span style={{ color: '#8896a8', fontSize: '12px' }}>{d.label}</span>
@@ -9100,9 +9082,6 @@ const OwnerDashboard = () => {
                   </div>
                 ))}
               </div>
-              <p style={{ color: '#8896a8', fontSize: '11px', margin: '12px 0 0' }}>
-                Set up auto-settlement under Settings → Bank & Tax details.
-              </p>
             </div>
           </div>
         )}
@@ -9339,38 +9318,41 @@ const OwnerDashboard = () => {
               </div>
             )}
 
-            {/* Auto-settlement setup (Razorpay Route) */}
+            {/* Route auto-settlement setup */}
             <div style={{ marginTop: '18px', paddingTop: '14px', borderTop: '1px solid rgba(201,168,76,0.2)' }}>
-              <h4 style={{ ...s.tableTitle, fontSize: '13px', marginBottom: '8px' }}>⚡ Auto-settlement setup</h4>
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '10px' }}>
+                <h4 style={{ ...s.tableTitle, fontSize: '13px', margin: 0 }}>⚡ Auto-Settlement (Razorpay Route)</h4>
+                <span
+                  style={{
+                    ...s.statusBadge,
+                    background: ownerBankProfile?.route_settlement_enabled
+                      ? 'rgba(76,175,80,0.15)'
+                      : 'rgba(255,152,0,0.15)',
+                    border: `1px solid ${ownerBankProfile?.route_settlement_enabled ? '#4CAF50' : '#FF9800'}`,
+                    color: ownerBankProfile?.route_settlement_enabled ? '#4CAF50' : '#FF9800',
+                  }}
+                >
+                  {ownerBankProfile?.route_settlement_enabled
+                    ? 'route_settlement_enabled'
+                    : 'route_settlement_disabled'}
+                </span>
+              </div>
               <p style={{ color: '#8896a8', fontSize: '11px', margin: '0 0 12px', lineHeight: 1.45 }}>
-                Create and activate a Razorpay Route linked account from your bank details. Finance admin then enables Route settlement for automatic payouts.
+                Create a Razorpay Route linked account from your bank details. Finance admin enables Route settlement for automatic payouts.
               </p>
               <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: '10px', marginBottom: '12px' }}>
-                {[
-                  {
-                    label: 'Linked account',
-                    val: ownerBankProfile?.razorpay_linked_account_id || 'Not created',
-                  },
-                  {
-                    label: 'Linked status',
-                    val: ownerBankProfile?.razorpay_linked_account_status || '—',
-                  },
-                  {
-                    label: 'Route settlement',
-                    val: ownerBankProfile?.route_settlement_enabled ? 'Enabled' : 'Disabled (admin)',
-                  },
-                  {
-                    label: 'Enabled at',
-                    val: ownerBankProfile?.route_settlement_enabled_at
-                      ? new Date(ownerBankProfile.route_settlement_enabled_at).toLocaleString('en-IN')
-                      : '—',
-                  },
-                ].map((d, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                    <span style={{ color: '#8896a8', fontSize: '12px' }}>{d.label}</span>
-                    <span style={{ color: '#e8e0d0', fontWeight: '600', fontSize: '12px', textAlign: 'right', maxWidth: '60%', wordBreak: 'break-all' }}>{d.val}</span>
-                  </div>
-                ))}
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <span style={{ color: '#8896a8', fontSize: '12px' }}>razorpay_linked_account_id</span>
+                  <span style={{ color: '#e8e0d0', fontWeight: '600', fontSize: '12px', textAlign: 'right', maxWidth: '60%', wordBreak: 'break-all' }}>
+                    {ownerBankProfile?.razorpay_linked_account_id || '—'}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <span style={{ color: '#8896a8', fontSize: '12px' }}>Linked status</span>
+                  <span style={{ color: '#e8e0d0', fontWeight: '600', fontSize: '12px' }}>
+                    {ownerBankProfile?.razorpay_linked_account_status || '—'}
+                  </span>
+                </div>
               </div>
               {routeSetupSuccess && (
                 <p style={{ color: '#4CAF50', fontSize: '12px', margin: '0 0 10px' }}>{routeSetupSuccess}</p>
@@ -9378,31 +9360,26 @@ const OwnerDashboard = () => {
               {routeSetupError && (
                 <p style={{ color: '#e94560', fontSize: '12px', margin: '0 0 10px' }}>{routeSetupError}</p>
               )}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                <button
-                  type="button"
-                  style={s.downloadBtn}
-                  disabled={routeSetupBusy || isBankIncomplete || Boolean(ownerBankProfile?.razorpay_linked_account_id)}
-                  onClick={handleCreateRouteLinkedAccount}
-                >
-                  {routeSetupBusy ? t('pleaseWait') : 'Create linked account'}
-                </button>
-                <button
-                  type="button"
-                  style={s.confirmBtn}
-                  disabled={
-                    routeSetupBusy
-                    || !ownerBankProfile?.razorpay_linked_account_id
-                    || String(ownerBankProfile?.razorpay_linked_account_status || '').toLowerCase() === 'active'
-                  }
-                  onClick={handleActivateRouteLinkedAccount}
-                >
-                  {routeSetupBusy ? t('pleaseWait') : 'Activate linked account'}
-                </button>
-              </div>
+              <button
+                type="button"
+                style={s.confirmBtn}
+                disabled={
+                  routeSetupBusy
+                  || isBankIncomplete
+                  || Boolean(ownerBankProfile?.razorpay_linked_account_id)
+                }
+                onClick={handleSetupAutoSettlement}
+              >
+                {routeSetupBusy ? t('pleaseWait') : 'Set up Auto-Settlement'}
+              </button>
               {isBankIncomplete && (
                 <p style={{ color: '#FF9800', fontSize: '11px', margin: '10px 0 0' }}>
-                  Complete bank name, account number, and IFSC before creating a linked account.
+                  Complete bank name, account number, and IFSC before setup.
+                </p>
+              )}
+              {ownerBankProfile?.razorpay_linked_account_id && !ownerBankProfile?.route_settlement_enabled && (
+                <p style={{ color: '#8896a8', fontSize: '11px', margin: '10px 0 0' }}>
+                  Linked account created. Waiting for finance admin to enable Route settlement.
                 </p>
               )}
             </div>
