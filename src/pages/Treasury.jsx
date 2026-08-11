@@ -4,7 +4,6 @@ import {
   fetchPendingSettlements,
   fetchRouteSettlementOwners,
   fetchTreasury,
-  fetchUsers,
   retryPendingSettlement,
   setRouteSettlementEnabled,
 } from '../services/machineosApi.js'
@@ -60,13 +59,7 @@ export default function Treasury() {
       const [treasuryData, settlementData, routeData] = await Promise.all([
         fetchTreasury(),
         fetchPendingSettlements('pending_transfer'),
-        fetchRouteSettlementOwners().catch(async (routeErr) => {
-          if (routeErr?.status && routeErr.status !== 404) throw routeErr
-          const usersData = await fetchUsers({ limit: 500, offset: 0 })
-          return {
-            items: (usersData.items || []).filter((u) => u.role === 'owner'),
-          }
-        }),
+        fetchRouteSettlementOwners().catch(() => ({ items: [] })),
       ])
       setTreasury(treasuryData)
       setSettlements(settlementData.items || [])

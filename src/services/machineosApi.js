@@ -204,13 +204,35 @@ export async function apiFetch(endpoint, options = {}) {
 
     if (!options._authRetried) {
 
-      await refreshAccessToken()
+      try {
+
+        await refreshAccessToken()
+
+      } catch (refreshErr) {
+
+        if (options.softAuth) {
+
+          const err = new Error(refreshErr?.message || data.error || 'Session expired')
+
+          err.status = 401
+
+          throw err
+
+        }
+
+        throw refreshErr
+
+      }
 
       return apiFetch(endpoint, { ...options, _authRetried: true })
 
     }
 
-    await handleAuthFailure()
+    if (!options.softAuth) {
+
+      await handleAuthFailure()
+
+    }
 
     const err = new Error(data.error || 'Session expired')
 
@@ -664,7 +686,7 @@ export function initiateWalletCredit({ userId, amount, reason }) {
 
 export function fetchRouteSettlementOwners() {
 
-  return apiFetch('/api/admin/route/owners')
+  return apiFetch('/api/admin/route/owners', { softAuth: true })
 
 }
 
