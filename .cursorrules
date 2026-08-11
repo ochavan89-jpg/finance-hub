@@ -1,0 +1,7 @@
+## Error Prevention Rule (MANDATORY)
+Before adding any new API call to existing pages:
+1. ALL optional API calls must catch ALL errors — never rethrow 401/403 from optional fetches
+2. New endpoints return 404 when unimplemented — never 401
+3. Finance Hub Promise.all: each call independently safe-to-fail
+4. Test: does failure cause logout or crash? Isolate if yes.
+5. cursorrules violation = same as breaking platform reputation rule
