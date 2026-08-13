@@ -1,13 +1,14 @@
 import { create } from 'zustand'
 import { REFRESH_KEY, TOKEN_KEY, USER_KEY } from '../services/machineosApi.js'
+import { isAccessTokenExpired } from '../lib/session.js'
 
-export const useAuthStore = create((set) => ({
+export const useAuthStore = create((set, get) => ({
   user: null,
   token: null,
   refreshToken: null,
   loading: true,
 
-  initAuth: () => {
+  initAuth: async () => {
     const token = localStorage.getItem(TOKEN_KEY)
     const refreshToken = localStorage.getItem(REFRESH_KEY)
     let user = null
@@ -16,12 +17,40 @@ export const useAuthStore = create((set) => ({
     } catch {
       user = null
     }
-    set({
-      user: token ? user : null,
-      token: token || null,
-      refreshToken: refreshToken || null,
-      loading: false,
-    })
+
+    if (!token) {
+      set({
+        user: null,
+        token: null,
+        refreshToken: refreshToken || null,
+        loading: false,
+      })
+      return
+    }
+
+    if (!isAccessTokenExpired(token)) {
+      set({
+        user,
+        token,
+        refreshToken: refreshToken || null,
+        loading: false,
+      })
+      return
+    }
+
+    try {
+      const { refreshAccessToken } = await import('../services/machineosApi.js')
+      const newToken = await refreshAccessToken()
+      set({
+        user,
+        token: newToken,
+        refreshToken: localStorage.getItem(REFRESH_KEY),
+        loading: false,
+      })
+    } catch {
+      await get().signOut()
+      set({ loading: false })
+    }
   },
 
   login: (response) => {

@@ -42,7 +42,7 @@ async function handleAuthFailure() {
 
 
 
-async function refreshAccessToken() {
+export async function refreshAccessToken() {
 
   if (refreshPromise) return refreshPromise
 
