@@ -15,24 +15,6 @@ import { getSessionStarted, getTokenExpiryLabel } from '../lib/session.js'
 import { fetchTreasury } from '../services/machineosApi.js'
 import { useAuthStore } from '../store/authStore.js'
 
-const PLATFORM_RATES = [
-  {
-    label: 'Commission Rate',
-    value: '15%',
-    footnote: 'Server default · DE_COMMISSION_PCT',
-  },
-  {
-    label: 'TDS Rate',
-    value: '2% u/s 194C',
-    footnote: 'Server default · DE_TDS_PCT',
-  },
-  {
-    label: 'GST TCS',
-    value: '1%',
-    footnote: 'Server default · DE_GST_TCS_PCT',
-  },
-]
-
 function getErrorMessage(err) {
   if (err?.status === 401 || err?.message === 'auth_required') {
     return 'Session expired. Please login again.'
@@ -141,15 +123,7 @@ export default function Settings() {
           )}
 
           <div className="settings-rows">
-            {PLATFORM_RATES.map(({ label, value, footnote }) => (
-              <div key={label} className="settings-row settings-row--stacked">
-                <div className="settings-row-main">
-                  <span className="settings-label">{label}</span>
-                  <span className="settings-value">{value}</span>
-                </div>
-                <p className="settings-footnote">{footnote}</p>
-              </div>
-            ))}
+            <p className="settings-footnote">Platform rates are configured via Railway environment variables (DE_COMMISSION_PCT, DE_TDS_PCT, DE_GST_TCS_PCT).</p>
 
             <div className="settings-row settings-row--stacked">
               <div className="settings-row-main">
