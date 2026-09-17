@@ -5,6 +5,7 @@ import { formatCount, formatInr, formatMonthLabel } from '../lib/format.js'
 import { supabase } from '../lib/supabase.js'
 import {
   Activity,
+  BarChart2,
   BarChart3,
   Clock,
   Landmark,
@@ -15,6 +16,8 @@ import {
 const PL_DEPRECIATION = 5000
 const PL_TAX_RATE = 0.25
 const AVAILABLE_HOURS_PER_MONTH = 26 * 8
+const UE_INFRA_FIXED = 3000
+const UE_GATEWAY_FALLBACK_PCT = 0.02
 
 const OPEX_KEYS = [
   'hetzner_vps',
@@ -70,6 +73,69 @@ function utilColor(pct) {
 
 function formatUtilPct(pct) {
   return `${pct.toFixed(1)}%`
+}
+
+function cmTone(pct) {
+  if (pct > 70) return 'success'
+  if (pct > 50) return 'warning'
+  return 'danger'
+}
+
+function cmColor(pct) {
+  const tone = cmTone(pct)
+  if (tone === 'success') return 'var(--success)'
+  if (tone === 'warning') return 'var(--warning)'
+  return '#f87171'
+}
+
+function calcUeMetrics(rows, hasRazorpayFee) {
+  const bookingCount = rows.length
+  if (bookingCount === 0) {
+    return {
+      bookingCount: 0,
+      avgGbv: 0,
+      avgCommission: 0,
+      avgGateway: 0,
+      avgInfra: 0,
+      contributionMargin: 0,
+      cmPct: 0,
+    }
+  }
+
+  let totalGbv = 0
+  let totalCommission = 0
+  let totalGateway = 0
+
+  for (const row of rows) {
+    const gbv = Number(row.gbv) || 0
+    totalGbv += gbv
+    totalCommission += Number(row.commission_amount) || 0
+    if (hasRazorpayFee) {
+      totalGateway += Number(row.razorpay_fee) || 0
+    }
+  }
+
+  if (!hasRazorpayFee) {
+    totalGateway = totalGbv * UE_GATEWAY_FALLBACK_PCT
+  }
+
+  const avgGbv = totalGbv / bookingCount
+  const avgCommission = totalCommission / bookingCount
+  const avgGateway = totalGateway / bookingCount
+  const avgInfra = UE_INFRA_FIXED / bookingCount
+  const contributionMargin = avgCommission - avgGateway - avgInfra
+  const cmPct =
+    avgCommission > 0 ? (contributionMargin / avgCommission) * 100 : 0
+
+  return {
+    bookingCount,
+    avgGbv,
+    avgCommission,
+    avgGateway,
+    avgInfra,
+    contributionMargin,
+    cmPct,
+  }
 }
 
 const KPI_CARDS = [
@@ -166,6 +232,11 @@ export default function Dashboard() {
   const [utilMachines, setUtilMachines] = useState([])
   const [utilLoading, setUtilLoading] = useState(true)
   const [utilError, setUtilError] = useState('')
+
+  const [ueMonth, setUeMonth] = useState(getCurrentMonthYear)
+  const [ueMetrics, setUeMetrics] = useState(null)
+  const [ueLoading, setUeLoading] = useState(true)
+  const [ueError, setUeError] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -352,6 +423,43 @@ export default function Dashboard() {
     const capacity = AVAILABLE_HOURS_PER_MONTH * utilMachines.length
     return capacity > 0 ? (totalBilled / capacity) * 100 : 0
   })()
+
+  const loadUe = useCallback(async (month) => {
+    setUeLoading(true)
+    setUeError('')
+    try {
+      const { start, end } = monthBounds(month)
+
+      let hasRazorpayFee = true
+      let { data, error: ueErr } = await supabase
+        .from('booking_settlements')
+        .select('commission_amount, gbv, razorpay_fee')
+        .gte('created_at', start)
+        .lt('created_at', end)
+
+      if (ueErr) {
+        hasRazorpayFee = false
+        const fallback = await supabase
+          .from('booking_settlements')
+          .select('commission_amount, gbv')
+          .gte('created_at', start)
+          .lt('created_at', end)
+        if (fallback.error) throw fallback.error
+        data = fallback.data
+      }
+
+      setUeMetrics(calcUeMetrics(data || [], hasRazorpayFee))
+    } catch {
+      setUeMetrics(null)
+      setUeError('Failed to load unit economics. Please try again.')
+    } finally {
+      setUeLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadUe(ueMonth)
+  }, [ueMonth, loadUe])
 
   return (
     <>
@@ -602,6 +710,154 @@ export default function Dashboard() {
               </table>
             </div>
           </>
+        ) : null}
+      </section>
+
+      <section className="section-card" style={{ marginBottom: 'var(--space-6)' }}>
+        <div className="section-header">
+          <h2 className="section-title" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <BarChart2 size={18} strokeWidth={1.75} color="var(--gold)" />
+            Unit Economics
+            {!ueLoading && ueMetrics && (
+              <span className="kpi-card-chip" style={{ marginTop: 0 }}>
+                {formatCount(ueMetrics.bookingCount)} bookings
+              </span>
+            )}
+          </h2>
+          <input
+            type="month"
+            className="filter-bar-input"
+            value={ueMonth}
+            onChange={(e) => setUeMonth(e.target.value)}
+            disabled={ueLoading}
+            aria-label="Unit economics month"
+          />
+        </div>
+
+        {ueError && (
+          <div className="dashboard-error" role="alert" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <span>{ueError}</span>
+            <button type="button" className="treasury-retry-btn" onClick={() => loadUe(ueMonth)}>
+              <RefreshCw size={14} />
+              Retry
+            </button>
+          </div>
+        )}
+
+        {ueLoading ? (
+          <div
+            className="overview-grid"
+            style={{ marginBottom: 0, gridTemplateColumns: 'repeat(3, 1fr)' }}
+          >
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <div
+                key={i}
+                className="kpi-card reports-kpi-card reports-kpi-card--skeleton"
+                aria-hidden
+              />
+            ))}
+          </div>
+        ) : ueMetrics && ueMetrics.bookingCount === 0 && !ueError ? (
+          <div className="empty-state">
+            <div className="empty-state-icon">📈</div>
+            <p>No bookings this month</p>
+          </div>
+        ) : ueMetrics ? (
+          <div
+            className="overview-grid"
+            style={{ marginBottom: 0, gridTemplateColumns: 'repeat(3, 1fr)' }}
+          >
+            {[
+              {
+                key: 'avgGbv',
+                label: 'Avg GBV per booking',
+                value: formatInr(ueMetrics.avgGbv),
+                tone: 'info',
+                chip: 'Gross',
+                color: undefined,
+              },
+              {
+                key: 'avgCommission',
+                label: 'Avg Commission per booking',
+                value: formatInr(ueMetrics.avgCommission),
+                tone: 'success',
+                chip: 'Revenue',
+                color: 'var(--success)',
+              },
+              {
+                key: 'avgGateway',
+                label: 'Avg Gateway Cost',
+                value: formatInr(ueMetrics.avgGateway),
+                tone: 'warning',
+                chip: 'Cost',
+                color: '#f87171',
+              },
+              {
+                key: 'avgInfra',
+                label: 'Avg Infra Cost',
+                value: formatInr(ueMetrics.avgInfra),
+                tone: 'warning',
+                chip: 'Fixed ₹3,000',
+                color: '#f87171',
+              },
+              {
+                key: 'cm',
+                label: 'Contribution Margin',
+                value: formatInr(ueMetrics.contributionMargin),
+                tone: ueMetrics.contributionMargin >= 0 ? 'success' : 'warning',
+                chip: ueMetrics.contributionMargin >= 0 ? 'Positive' : 'Negative',
+                color:
+                  ueMetrics.contributionMargin >= 0 ? 'var(--success)' : '#f87171',
+              },
+              {
+                key: 'cmPct',
+                label: 'CM %',
+                value: `${ueMetrics.cmPct.toFixed(1)}%`,
+                tone:
+                  cmTone(ueMetrics.cmPct) === 'danger'
+                    ? 'warning'
+                    : cmTone(ueMetrics.cmPct),
+                chip:
+                  cmTone(ueMetrics.cmPct) === 'success'
+                    ? 'Strong'
+                    : cmTone(ueMetrics.cmPct) === 'warning'
+                      ? 'Fair'
+                      : 'Weak',
+                color: cmColor(ueMetrics.cmPct),
+              },
+            ].map(({ key, label, value, tone, chip, color }) => (
+              <div key={key} className="kpi-card">
+                <div className={`kpi-card-glow kpi-card-glow--${tone}`} aria-hidden />
+                <div className="kpi-card-top">
+                  <div className={`kpi-card-icon kpi-card-icon--${tone}`}>
+                    <BarChart2 size={22} strokeWidth={1.75} />
+                  </div>
+                </div>
+                <div className="kpi-card-value" style={color ? { color } : undefined}>
+                  {value}
+                </div>
+                <div className="kpi-card-label">{label}</div>
+                <span
+                  className="kpi-card-chip"
+                  style={
+                    color
+                      ? {
+                          color,
+                          background:
+                            color === '#f87171'
+                              ? 'rgba(248, 113, 113, 0.12)'
+                              : color === 'var(--warning)'
+                                ? 'rgba(245, 158, 11, 0.12)'
+                                : 'rgba(16, 185, 129, 0.12)',
+                        }
+                      : undefined
+                  }
+                >
+                  {chip}
+                </span>
+              </div>
+            ))}
+          </div>
         ) : null}
       </section>
 
