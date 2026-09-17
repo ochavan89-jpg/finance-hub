@@ -4,6 +4,7 @@ import { apiFetch } from '../services/machineosApi.js'
 import { formatCount, formatInr, formatMonthLabel } from '../lib/format.js'
 import { supabase } from '../lib/supabase.js'
 import {
+  Activity,
   BarChart3,
   Clock,
   Landmark,
@@ -13,6 +14,7 @@ import {
 
 const PL_DEPRECIATION = 5000
 const PL_TAX_RATE = 0.25
+const AVAILABLE_HOURS_PER_MONTH = 26 * 8
 
 const OPEX_KEYS = [
   'hetzner_vps',
@@ -51,6 +53,23 @@ function calcPlMetrics(revenue, opex) {
   const tax = preTax > 0 ? preTax * PL_TAX_RATE : 0
   const pat = preTax - tax
   return { ebitda, pat }
+}
+
+function utilTone(pct) {
+  if (pct > 60) return 'success'
+  if (pct > 40) return 'warning'
+  return 'danger'
+}
+
+function utilColor(pct) {
+  const tone = utilTone(pct)
+  if (tone === 'success') return 'var(--success)'
+  if (tone === 'warning') return 'var(--warning)'
+  return '#f87171'
+}
+
+function formatUtilPct(pct) {
+  return `${pct.toFixed(1)}%`
 }
 
 const KPI_CARDS = [
@@ -142,6 +161,11 @@ export default function Dashboard() {
   const [plPat, setPlPat] = useState(0)
   const [plLoading, setPlLoading] = useState(true)
   const [plError, setPlError] = useState('')
+
+  const [utilMonth, setUtilMonth] = useState(getCurrentMonthYear)
+  const [utilMachines, setUtilMachines] = useState([])
+  const [utilLoading, setUtilLoading] = useState(true)
+  const [utilError, setUtilError] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -244,6 +268,90 @@ export default function Dashboard() {
   useEffect(() => {
     loadPl(plMonth)
   }, [plMonth, loadPl])
+
+  const loadUtil = useCallback(async (month) => {
+    setUtilLoading(true)
+    setUtilError('')
+    try {
+      const { start, end } = monthBounds(month)
+
+      const [machinesResult, billedResult] = await Promise.all([
+        (async () => {
+          try {
+            const { data, error: machinesErr } = await supabase
+              .from('machines')
+              .select('id, name, machine_type')
+              .eq('status', 'active')
+            if (machinesErr) throw machinesErr
+            return data || []
+          } catch {
+            return null
+          }
+        })(),
+        (async () => {
+          try {
+            const { data, error: billedErr } = await supabase
+              .from('booking_settlements')
+              .select('machine_id, billed_hours')
+              .gte('created_at', start)
+              .lt('created_at', end)
+            if (billedErr) throw billedErr
+            return data || []
+          } catch {
+            return null
+          }
+        })(),
+      ])
+
+      if (machinesResult === null || billedResult === null) {
+        setUtilMachines([])
+        setUtilError('Failed to load fleet utilization. Please try again.')
+        return
+      }
+
+      const billedByMachine = new Map()
+      for (const row of billedResult) {
+        const id = row.machine_id
+        if (id == null) continue
+        const hours = Number(row.billed_hours) || 0
+        billedByMachine.set(id, (billedByMachine.get(id) || 0) + hours)
+      }
+
+      const rows = machinesResult.map((machine) => {
+        const billedHours = billedByMachine.get(machine.id) || 0
+        const utilizationPct =
+          AVAILABLE_HOURS_PER_MONTH > 0
+            ? (billedHours / AVAILABLE_HOURS_PER_MONTH) * 100
+            : 0
+        return {
+          id: machine.id,
+          name: machine.name || '—',
+          machine_type: machine.machine_type || '—',
+          billedHours,
+          availableHours: AVAILABLE_HOURS_PER_MONTH,
+          utilizationPct,
+        }
+      })
+
+      setUtilMachines(rows)
+    } catch {
+      setUtilMachines([])
+      setUtilError('Failed to load fleet utilization. Please try again.')
+    } finally {
+      setUtilLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadUtil(utilMonth)
+  }, [utilMonth, loadUtil])
+
+  const utilOverallPct = (() => {
+    if (!utilMachines.length) return 0
+    const totalBilled = utilMachines.reduce((sum, m) => sum + m.billedHours, 0)
+    const capacity = AVAILABLE_HOURS_PER_MONTH * utilMachines.length
+    return capacity > 0 ? (totalBilled / capacity) * 100 : 0
+  })()
 
   return (
     <>
@@ -384,6 +492,117 @@ export default function Dashboard() {
             })}
           </div>
         )}
+      </section>
+
+      <section className="section-card" style={{ marginBottom: 'var(--space-6)' }}>
+        <div className="section-header">
+          <h2 className="section-title" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Activity size={18} strokeWidth={1.75} color="var(--gold)" />
+            Fleet Utilization
+          </h2>
+          <input
+            type="month"
+            className="filter-bar-input"
+            value={utilMonth}
+            onChange={(e) => setUtilMonth(e.target.value)}
+            disabled={utilLoading}
+            aria-label="Fleet utilization month"
+          />
+        </div>
+
+        {utilError && (
+          <div className="dashboard-error" role="alert" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <span>{utilError}</span>
+            <button type="button" className="treasury-retry-btn" onClick={() => loadUtil(utilMonth)}>
+              <RefreshCw size={14} />
+              Retry
+            </button>
+          </div>
+        )}
+
+        {utilLoading ? (
+          <div className="treasury-table-skeleton" aria-hidden>
+            <div className="settlement-row--skeleton" style={{ height: '5rem' }} />
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="settlement-row--skeleton" />
+            ))}
+          </div>
+        ) : utilMachines.length === 0 && !utilError ? (
+          <div className="empty-state">
+            <div className="empty-state-icon">🚜</div>
+            <p>No active machines</p>
+          </div>
+        ) : utilMachines.length > 0 ? (
+          <>
+            <div style={{ marginBottom: 'var(--space-5)' }}>
+              <div className="kpi-card-label">Overall fleet utilization</div>
+              <div
+                className="kpi-card-value"
+                style={{ color: utilColor(utilOverallPct) }}
+              >
+                {formatUtilPct(utilOverallPct)}
+              </div>
+              <span
+                className="kpi-card-chip"
+                style={{
+                  color: utilColor(utilOverallPct),
+                  background:
+                    utilTone(utilOverallPct) === 'success'
+                      ? 'rgba(16, 185, 129, 0.12)'
+                      : utilTone(utilOverallPct) === 'warning'
+                        ? 'rgba(245, 158, 11, 0.12)'
+                        : 'rgba(248, 113, 113, 0.12)',
+                }}
+              >
+                {utilTone(utilOverallPct) === 'success'
+                  ? 'Healthy'
+                  : utilTone(utilOverallPct) === 'warning'
+                    ? 'Moderate'
+                    : 'Low'}
+              </span>
+            </div>
+
+            <div className="ledger-table-wrap">
+              <table className="ledger-table">
+                <thead>
+                  <tr>
+                    <th>Machine name</th>
+                    <th>Type</th>
+                    <th>Billed hrs</th>
+                    <th>Available hrs</th>
+                    <th>Utilization %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {utilMachines.map((row) => (
+                    <tr key={row.id}>
+                      <td data-label="Machine name">{row.name}</td>
+                      <td data-label="Type">{row.machine_type}</td>
+                      <td data-label="Billed hrs">{row.billedHours.toFixed(1)}</td>
+                      <td data-label="Available hrs">{row.availableHours}</td>
+                      <td data-label="Utilization %">
+                        <span
+                          className="kpi-card-chip"
+                          style={{
+                            color: utilColor(row.utilizationPct),
+                            background:
+                              utilTone(row.utilizationPct) === 'success'
+                                ? 'rgba(16, 185, 129, 0.12)'
+                                : utilTone(row.utilizationPct) === 'warning'
+                                  ? 'rgba(245, 158, 11, 0.12)'
+                                  : 'rgba(248, 113, 113, 0.12)',
+                          }}
+                        >
+                          {formatUtilPct(row.utilizationPct)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : null}
       </section>
 
       <section className="section-card">
