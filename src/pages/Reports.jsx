@@ -23,7 +23,7 @@ import {
   getLastSixIstMonthRanges,
   sumSettlementTotals,
 } from '../lib/settlements.js'
-import { fetchSettlementsPage } from '../services/machineosApi.js'
+import { fetchSettlementsPage, downloadGstr1Json, downloadGstr8Json } from '../services/machineosApi.js'
 
 const CHART_GOLD = '#C9A84C'
 const TABLE_PAGE_SIZE = 100
@@ -159,6 +159,12 @@ export default function Reports() {
     to: '',
     status: 'settled',
   })
+  const [gstr1Loading, setGstr1Loading] = useState(false)
+  const [gstr1Error, setGstr1Error] = useState('')
+  const [gstr1Success, setGstr1Success] = useState('')
+  const [gstr8Loading, setGstr8Loading] = useState(false)
+  const [gstr8Error, setGstr8Error] = useState('')
+  const [gstr8Success, setGstr8Success] = useState('')
 
   const loadMtdKpis = useCallback(async () => {
     setMtdLoading(true)
@@ -234,6 +240,34 @@ export default function Reports() {
   function applyTableFilters() {
     const next = { from: filterFrom, to: filterTo, status: filterStatus }
     loadTable(0, next)
+  }
+
+  async function handleGstr1Download() {
+    setGstr1Loading(true)
+    setGstr1Error('')
+    setGstr1Success('')
+    try {
+      const { filename } = await downloadGstr1Json(filterFrom, filterTo)
+      setGstr1Success(`Downloaded ${filename}`)
+    } catch (err) {
+      setGstr1Error(getErrorMessage(err))
+    } finally {
+      setGstr1Loading(false)
+    }
+  }
+
+  async function handleGstr8Download() {
+    setGstr8Loading(true)
+    setGstr8Error('')
+    setGstr8Success('')
+    try {
+      const { filename } = await downloadGstr8Json(filterFrom, filterTo)
+      setGstr8Success(`Downloaded ${filename}`)
+    } catch (err) {
+      setGstr8Error(getErrorMessage(err))
+    } finally {
+      setGstr8Loading(false)
+    }
   }
 
   function goTablePrev() {
@@ -363,6 +397,27 @@ export default function Reports() {
           <h2>Settlement Ledger</h2>
         </div>
 
+        {gstr1Error && (
+          <div className="dashboard-error treasury-banner reports-section-msg" role="alert">
+            {gstr1Error}
+          </div>
+        )}
+        {gstr1Success && (
+          <div className="treasury-success export-section-msg" role="status">
+            {gstr1Success}
+          </div>
+        )}
+        {gstr8Error && (
+          <div className="dashboard-error treasury-banner reports-section-msg" role="alert">
+            {gstr8Error}
+          </div>
+        )}
+        {gstr8Success && (
+          <div className="treasury-success export-section-msg" role="status">
+            {gstr8Success}
+          </div>
+        )}
+
         {tableError && (
           <div className="dashboard-error treasury-banner reports-section-msg" role="alert">
             <span>{tableError}</span>
@@ -422,6 +477,45 @@ export default function Reports() {
           <button type="button" className="reports-apply-btn" onClick={applyTableFilters}>
             Apply
           </button>
+          <button
+            type="button"
+            className="export-csv-btn"
+            onClick={handleGstr1Download}
+            disabled={gstr1Loading}
+          >
+            {gstr1Loading ? (
+              <>
+                <Loader2 size={16} className="treasury-spin" />
+                Exporting…
+              </>
+            ) : (
+              <>
+                <Receipt size={16} />
+                GSTR-1 JSON
+              </>
+            )}
+          </button>
+          <button
+            type="button"
+            className="export-csv-btn"
+            onClick={handleGstr8Download}
+            disabled={gstr8Loading}
+          >
+            {gstr8Loading ? (
+              <>
+                <Loader2 size={16} className="treasury-spin" />
+                Exporting…
+              </>
+            ) : (
+              <>
+                <Wallet size={16} />
+                GSTR-8 TCS
+              </>
+            )}
+          </button>
+          <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+            ECO bookings only (Sec 52)
+          </p>
         </div>
 
         <div className="ledger-table-wrap">
