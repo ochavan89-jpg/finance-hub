@@ -6,6 +6,7 @@ import {
   Percent,
   Receipt,
   RefreshCw,
+  TrendingUp,
   Wallet,
 } from 'lucide-react'
 import {
@@ -18,6 +19,7 @@ import {
   YAxis,
 } from 'recharts'
 import { formatDateTime, formatInr } from '../lib/format.js'
+import { supabase } from '../lib/supabase.js'
 import {
   getIstMonthRange,
   getLastSixIstMonthRanges,
@@ -28,6 +30,9 @@ import { fetchSettlementsPage, downloadGstr1Json, downloadGstr8Json } from '../s
 const CHART_GOLD = '#C9A84C'
 const TABLE_PAGE_SIZE = 100
 const FETCH_LIMIT = 500
+const OWNER_CAC = 6000
+const CLIENT_CAC = 200
+const SUPABASE_PAGE = 1000
 
 const KPI_ITEMS = [
   { key: 'commission', label: 'MTD Commission', icon: IndianRupee, tone: 'gold' },
@@ -48,6 +53,104 @@ function getErrorMessage(err) {
     return 'Session expired. Please login again.'
   }
   return err?.message || 'Request failed'
+}
+
+function monthsSince(isoString) {
+  if (!isoString) return 1
+  const from = new Date(isoString)
+  if (Number.isNaN(from.getTime())) return 1
+  const now = new Date()
+  const months =
+    (now.getFullYear() - from.getFullYear()) * 12 +
+    (now.getMonth() - from.getMonth())
+  return Math.max(1, months || 1)
+}
+
+async function fetchAllSupabaseRows(buildQuery) {
+  const all = []
+  let from = 0
+  while (true) {
+    const { data, error } = await buildQuery().range(from, from + SUPABASE_PAGE - 1)
+    if (error) throw error
+    const chunk = data || []
+    all.push(...chunk)
+    if (chunk.length < SUPABASE_PAGE) break
+    from += SUPABASE_PAGE
+  }
+  return all
+}
+
+function buildSideMetrics(userIds, settlementsByUserId, cac) {
+  const count = userIds.length
+  if (count === 0) {
+    return {
+      count: 0,
+      avgLtv: 0,
+      cac,
+      ratio: 0,
+      paybackMonths: null,
+      totalLtv: 0,
+    }
+  }
+
+  let totalLtv = 0
+  let monthlySum = 0
+  let monthlyCount = 0
+
+  for (const id of userIds) {
+    const entry = settlementsByUserId.get(id) || {
+      lifetime_revenue: 0,
+      total_bookings: 0,
+      first_booking: null,
+    }
+    const ltv = entry.lifetime_revenue
+    totalLtv += ltv
+    if (ltv > 0 && entry.first_booking) {
+      monthlySum += ltv / monthsSince(entry.first_booking)
+      monthlyCount += 1
+    }
+  }
+
+  const avgLtv = totalLtv / count
+  const ratio = cac > 0 ? avgLtv / cac : 0
+  const avgMonthly = monthlyCount > 0 ? monthlySum / monthlyCount : 0
+  const paybackMonths = avgMonthly > 0 ? cac / avgMonthly : null
+
+  return {
+    count,
+    avgLtv,
+    cac,
+    ratio,
+    paybackMonths,
+    totalLtv,
+  }
+}
+
+function aggregateSettlementsByKey(rows, key) {
+  const map = new Map()
+  for (const row of rows) {
+    const id = row[key]
+    if (id == null) continue
+    const commission = Number(row.commission_amount) || 0
+    const existing = map.get(id)
+    if (!existing) {
+      map.set(id, {
+        lifetime_revenue: commission,
+        total_bookings: 1,
+        first_booking: row.created_at || null,
+      })
+      continue
+    }
+    existing.lifetime_revenue += commission
+    existing.total_bookings += 1
+    if (
+      row.created_at &&
+      (!existing.first_booking || row.created_at < existing.first_booking)
+    ) {
+      existing.first_booking = row.created_at
+    }
+  }
+  return map
 }
 
 function formatChartInr(value) {
@@ -166,6 +269,10 @@ export default function Reports() {
   const [gstr8Error, setGstr8Error] = useState('')
   const [gstr8Success, setGstr8Success] = useState('')
 
+  const [ltvcacData, setLtvcacData] = useState(null)
+  const [ltvcacLoading, setLtvcacLoading] = useState(true)
+  const [ltvcacError, setLtvcacError] = useState('')
+
   const loadMtdKpis = useCallback(async () => {
     setMtdLoading(true)
     setMtdError('')
@@ -236,6 +343,77 @@ export default function Reports() {
     loadChart()
     loadTable(0, defaultFilters)
   }, [loadMtdKpis, loadChart, loadTable])
+
+  const loadLtvcac = useCallback(async () => {
+    setLtvcacLoading(true)
+    setLtvcacError('')
+    try {
+      const [ownersResult, clientsResult, settlementsResult] = await Promise.all([
+        (async () => {
+          try {
+            return await fetchAllSupabaseRows(() =>
+              supabase.from('users').select('id').eq('role', 'owner').eq('status', 'active'),
+            )
+          } catch {
+            return null
+          }
+        })(),
+        (async () => {
+          try {
+            return await fetchAllSupabaseRows(() =>
+              supabase.from('users').select('id').eq('role', 'client').eq('status', 'active'),
+            )
+          } catch {
+            return null
+          }
+        })(),
+        (async () => {
+          try {
+            return await fetchAllSupabaseRows(() =>
+              supabase
+                .from('booking_settlements')
+                .select('owner_id, client_id, commission_amount, created_at'),
+            )
+          } catch {
+            return null
+          }
+        })(),
+      ])
+
+      if (
+        ownersResult === null ||
+        clientsResult === null ||
+        settlementsResult === null
+      ) {
+        setLtvcacData(null)
+        setLtvcacError('Failed to load LTV:CAC data. Please try again.')
+        return
+      }
+
+      const ownerIds = ownersResult.map((u) => u.id)
+      const clientIds = clientsResult.map((u) => u.id)
+      const byOwner = aggregateSettlementsByKey(settlementsResult, 'owner_id')
+      const byClient = aggregateSettlementsByKey(settlementsResult, 'client_id')
+
+      const owners = buildSideMetrics(ownerIds, byOwner, OWNER_CAC)
+      const clients = buildSideMetrics(clientIds, byClient, CLIENT_CAC)
+
+      const totalSpend = owners.count * OWNER_CAC + clients.count * CLIENT_CAC
+      const totalLtv = owners.totalLtv + clients.totalLtv
+      const returnPerRupee = totalSpend > 0 ? totalLtv / totalSpend : 0
+
+      setLtvcacData({ owners, clients, returnPerRupee })
+    } catch (err) {
+      setLtvcacData(null)
+      setLtvcacError(getErrorMessage(err) || 'Failed to load LTV:CAC data. Please try again.')
+    } finally {
+      setLtvcacLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadLtvcac()
+  }, [loadLtvcac])
 
   function applyTableFilters() {
     const next = { from: filterFrom, to: filterTo, status: filterStatus }
@@ -390,6 +568,107 @@ export default function Reports() {
             </ResponsiveContainer>
           )}
         </div>
+      </section>
+
+      <section className="section-card" style={{ marginBottom: 'var(--space-6)' }}>
+        <div className="reports-chart-header">
+          <div className="reports-chart-title">
+            <TrendingUp size={18} strokeWidth={1.75} />
+            <h2>LTV : CAC Analysis</h2>
+          </div>
+          <p className="reports-chart-subtitle">
+            Owner CAC ₹{OWNER_CAC.toLocaleString('en-IN')} · Client CAC ₹{CLIENT_CAC.toLocaleString('en-IN')}
+          </p>
+        </div>
+
+        {ltvcacError && (
+          <div className="dashboard-error treasury-banner reports-section-msg" role="alert">
+            <span>{ltvcacError}</span>
+            <button type="button" className="treasury-retry-btn" onClick={loadLtvcac}>
+              <RefreshCw size={14} />
+              Retry
+            </button>
+          </div>
+        )}
+
+        {ltvcacLoading ? (
+          <div className="treasury-balance-stats" aria-hidden>
+            <div className="kpi-card reports-kpi-card reports-kpi-card--skeleton" />
+            <div className="kpi-card reports-kpi-card reports-kpi-card--skeleton" />
+          </div>
+        ) : !ltvcacData || (ltvcacData.owners.count === 0 && ltvcacData.clients.count === 0) ? (
+          !ltvcacError ? (
+            <div className="transactions-empty">
+              <p>No data yet</p>
+            </div>
+          ) : null
+        ) : (
+          <>
+            <div className="treasury-balance-stats">
+              {[
+                {
+                  key: 'owners',
+                  title: 'Owners',
+                  side: ltvcacData.owners,
+                  countLabel: 'Active owners',
+                },
+                {
+                  key: 'clients',
+                  title: 'Clients',
+                  side: ltvcacData.clients,
+                  countLabel: 'Active clients',
+                },
+              ].map(({ key, title, side, countLabel }) => (
+                <div key={key} className="kpi-card" style={{ minHeight: 'auto' }}>
+                  <div className="kpi-card-glow kpi-card-glow--gold" aria-hidden />
+                  <div className="kpi-card-label" style={{ marginBottom: '0.75rem' }}>
+                    {title}
+                  </div>
+                  <div className="settings-rows" style={{ gap: '0.65rem' }}>
+                    <div className="settings-row" style={{ padding: '0.35rem 0' }}>
+                      <span className="settings-label">{countLabel}</span>
+                      <span className="settings-value">{side.count}</span>
+                    </div>
+                    <div className="settings-row" style={{ padding: '0.35rem 0' }}>
+                      <span className="settings-label">Avg LTV</span>
+                      <span className="settings-value settings-value--gold">
+                        {formatInr(side.avgLtv)}
+                      </span>
+                    </div>
+                    <div className="settings-row" style={{ padding: '0.35rem 0' }}>
+                      <span className="settings-label">CAC</span>
+                      <span className="settings-value">{formatInr(side.cac)}</span>
+                    </div>
+                    <div className="settings-row" style={{ padding: '0.35rem 0' }}>
+                      <span className="settings-label">LTV : CAC</span>
+                      <span
+                        className="kpi-card-value"
+                        style={{ color: 'var(--gold)', fontSize: '1.75rem' }}
+                      >
+                        {side.ratio.toFixed(2)}x
+                      </span>
+                    </div>
+                    <div className="settings-row" style={{ padding: '0.35rem 0', borderBottom: 'none' }}>
+                      <span className="settings-label">Payback</span>
+                      <span className="settings-value">
+                        {side.paybackMonths == null
+                          ? '—'
+                          : `${side.paybackMonths.toFixed(1)} months`}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p
+              className="reports-chart-subtitle"
+              style={{ marginTop: 'var(--space-4)', marginBottom: 0 }}
+            >
+              Every ₹1 spent on acquisition returns ₹
+              {ltvcacData.returnPerRupee.toFixed(2)}
+            </p>
+          </>
+        )}
       </section>
 
       <section className="section-card reports-table-section">
